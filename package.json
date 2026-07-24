@@ -1,7 +1,7 @@
 {
-  "name": "react-glass",
+  "name": "react-liquid-glass-hook",
   "version": "1.0.0",
-  "description": "React component for Apple Liquid Glass effect — CSS blur + WebGPU refractive edge",
+  "description": "React hook and component for WebGPU-based glass refraction effect — SDF refractive edge + CSS backdrop-filter blur",
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
@@ -38,6 +38,7 @@
   "devDependencies": {
     "@types/react": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.0",
+    "@webgpu/types": "^0.1.71",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
     "typescript": "^5.5.0",
@@ -45,6 +46,6 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/your-org/react-glass"
+    "url": "https://github.com/RuslanGabbasov/react-liquid-glass"
   }
 }

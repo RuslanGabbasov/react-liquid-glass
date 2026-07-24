@@ -18,16 +18,28 @@ export interface GlassConfig {
   innerBrighten: number;
   /** CSS blur amount for the body, px. @default 4 */
   blurAmount: number;
+  /** CSS box-shadow string. @default a glass-style shadow */
+  shadow: string;
+  /** Background color behind the blur. @default rgba(255,255,255,0.04) */
+  background: string;
+  /** Border color/style. @default 1px solid rgba(255,255,255,0.2) */
+  border: string;
+  /** Padding in content block */
+  padding: number;
 }
 
 export const defaultConfig: GlassConfig = {
-  cornerRadius: 32,
-  borderWidth: 4,
+  cornerRadius: 18,
+  borderWidth: 3,
   refraction: 14,
-  fresnelPower: 5,
+  fresnelPower: 15,
   highlight: 0.15,
-  chromaticAberration: 0.035,
+  chromaticAberration: 0.135,
   glassAlpha: 0.08,
   innerBrighten: 1.08,
   blurAmount: 4,
+  shadow: '0 8px 32px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.5), inset 0 8px 12px rgba(255,255,255,0.1)',
+  background: 'rgba(255,255,255,0.04)',
+  border: '0px solid rgba(255,255,255,0.2)',
+  padding: 20
 };

@@ -1,9 +1,9 @@
-# react-glass
+# react-liquid-glass-hook
 
-React component for the **Apple Liquid Glass** effect — CSS `backdrop-filter` blur + WebGPU refractive edge.
+React hook and component for **WebGPU-powered glass refraction** — SDF refractive edge + CSS `backdrop-filter` blur.
 
-[![npm version](https://img.shields.io/npm/v/react-glass.svg)](https://www.npmjs.com/package/react-glass)
-[![license](https://img.shields.io/npm/l/react-glass.svg)](MIT)
+[![npm version](https://img.shields.io/npm/v/react-liquid-glass-hook.svg)](https://www.npmjs.com/package/react-liquid-glass-hook)
+[![license](https://img.shields.io/npm/l/react-liquid-glass-hook.svg)](MIT)
 
 <p align="center">
   <img src="https://img.shields.io/badge/WebGPU-required-blue" alt="WebGPU">
@@ -23,7 +23,7 @@ React component for the **Apple Liquid Glass** effect — CSS `backdrop-filter` 
 ## Installation
 
 ```bash
-npm install react-glass
+npm install react-liquid-glass-hook
 ```
 
 > **Requires Chrome 113+ or Edge 113+** with WebGPU enabled.
@@ -33,7 +33,7 @@ npm install react-glass
 ### `<Glass>` component
 
 ```tsx
-import { Glass } from 'react-glass';
+import { Glass } from 'react-liquid-glass-hook';
 
 function App() {
   return (
@@ -50,7 +50,7 @@ function App() {
 ### `useGlass()` hook
 
 ```tsx
-import { useGlass } from 'react-glass';
+import { useGlass } from 'react-liquid-glass-hook';
 
 function MyCard() {
   const canvasRef = useGlass({ borderWidth: 6, refraction: 18 });
@@ -81,6 +81,9 @@ function MyCard() {
 | `glassAlpha` | `number` | `0.08` | Inner white overlay opacity |
 | `innerBrighten` | `number` | `1.08` | Inner area brightness multiplier |
 | `blurAmount` | `number` | `4` | CSS blur amount for the body, px |
+| `shadow` | `string` | glass shadow | CSS box-shadow |
+| `background` | `string` | `rgba(…)` | Background color behind the blur |
+| `border` | `string` | `1px solid …` | CSS border |
 
 ### `useGlass(config?)`
 
@@ -96,18 +99,18 @@ Convenience wrapper component. Renders a `<div>` with:
 
 - CSS `backdrop-filter: blur(config.blurAmount)`
 - A WebGPU `<canvas>` overlay for the refractive edge
-- Inner `<div>` for children
+- Inner `<div>` for children with `borderRadius = cornerRadius - borderWidth` for uniform border
 
 ## How it works
 
 ```
 ┌─────────────────────────────────────────┐
 │  CSS background (gradients, images)     │
-│                                          │
+│                                         │
 │   ┌──────────────────────────────┐      │
 │   │  Glass Panel                 │      │
 │   │                              │      │
-│   │  ┌── CSS blur zone ────┐    │      │
+│   │  ┌── CSS blur zone ──-──┐    │      │
 │   │  │  backdrop-filter     │    │      │
 │   │  │  blur(4px)           │    │      │
 │   │  │                      │    │      │
@@ -115,7 +118,7 @@ Convenience wrapper component. Renders a `<div>` with:
 │   │  │                      │    │      │
 │   │  └──────────────────────┘    │      │
 │   │                              │      │
-│   │  ┌── WebGPU edge ──────┐    │      │
+│   │  ┌── WebGPU edge ────-──┐    │      │
 │   │  │  SDF refraction      │    │      │
 │   │  │  Fresnel highlight   │    │      │
 │   │  │  Chromatic aberration│    │      │
@@ -131,7 +134,7 @@ Convenience wrapper component. Renders a `<div>` with:
 ## Dev
 
 ```bash
-git clone https://github.com/your-org/react-glass
+git clone https://github.com/RuslanGabbasov/react-liquid-glass
 cd react-glass
 npm install
 npm run dev

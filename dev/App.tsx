@@ -28,7 +28,7 @@ const bgStyles = `
 `;
 
 // ---- Custom card using the hook directly ----
-function CustomGlassCard() {
+function CustomGlassCard({ onDrag }: { onDrag: (e: React.PointerEvent) => void }) {
   const canvasRef = useGlass({ borderWidth: 6, refraction: 18 });
 
   const style: React.CSSProperties = {
@@ -41,15 +41,15 @@ function CustomGlassCard() {
     border: '1px solid rgba(255,255,255,0.2)',
     boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
     position: 'relative',
-    overflow: 'hidden',
+    overflow: 'hidden'
   };
 
   return (
-    <div style={style}>
+    <div style={style} onPointerDown={onDrag}>
       <canvas ref={canvasRef} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 1, borderRadius: 32 }} />
       <div style={{ position: 'relative', zIndex: 2, padding: 28 }}>
         <h3 style={{ margin: '0 0 10px', fontSize: 18, fontWeight: 600 }}>useGlass() hook</h3>
-        <p style={{ fontSize: 13, lineHeight: 1.6, opacity: 0.8 }}>
+        <p style={{ fontSize: 13, lineHeight: 1.6, opacity: 0.8, padding: 20 }}>
           This card uses the low-level <code style={{ background: 'rgba(255,255,255,0.1)', padding: '1px 5px', borderRadius: 3, fontSize: 11 }}>useGlass(config)</code> hook.
           Full control over styling and layout.
         </p>
@@ -71,7 +71,25 @@ export default function App() {
 
   const startDrag = useCallback((id: number, e: React.PointerEvent) => {
     const card = cards.find(c => c.id === id);
-    if (!card) return;
+    if (!card) {
+      // CustomGlassCard — start drag on the parent element
+      const target = (e.currentTarget as HTMLElement).parentElement;
+      if (!target) return;
+      const rect = target.getBoundingClientRect();
+      dragRef.current = id;
+      offRef.x = e.clientX - rect.left;
+      offRef.y = e.clientY - rect.top;
+
+      const onMove = (ev: PointerEvent) => {
+        if (dragRef.current === null) return;
+        target.style.left = `${ev.clientX - offRef.x}px`;
+        target.style.top = `${ev.clientY - offRef.y}px`;
+      };
+      const onUp = () => { dragRef.current = null; window.removeEventListener('pointermove', onMove); window.removeEventListener('pointerup', onUp); };
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', onUp);
+      return;
+    }
     dragRef.current = id;
     offRef.x = e.clientX - card.x;
     offRef.y = e.clientY - card.y;
@@ -98,7 +116,7 @@ export default function App() {
             onPointerDown={(e) => startDrag(card.id, e)}
             style={{ position: 'absolute', left: card.x, top: card.y, cursor: 'grab', userSelect: 'none' }}
           >
-            <Glass config={{ cornerRadius: 32, blurAmount: 4 }} style={{ width: card.w, height: card.h }}>
+            <Glass config={{ cornerRadius: 32, padding: 20, blurAmount: 4, shadow: '0 8px 32px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.5), inset 0 8px 12px rgba(255,255,255,0.1)' }} style={{ width: card.w, height: card.h }}>
               <h3 style={{ margin: '0 0 10px', fontSize: 18, fontWeight: 600 }}>{card.title}</h3>
               <p style={{ fontSize: 13, lineHeight: 1.6, opacity: 0.8 }}>{card.body}</p>
             </Glass>
@@ -107,7 +125,7 @@ export default function App() {
 
         {/* Custom hook usage */}
         <div style={{ position: 'absolute', left: 760, top: 440, cursor: 'grab', userSelect: 'none' }}>
-          <CustomGlassCard />
+          <CustomGlassCard onDrag={(e) => startDrag(-1, e)} />
         </div>
 
         <div className="hint">Drag panels · CSS blur + WebGPU refractive edge</div>

@@ -78,21 +78,19 @@ export function Glass({ children, config, style, className }: GlassProps) {
   const merged = { ...defaultConfig, ...config };
   const canvasRef = useGlass(merged);
 
+  // Content radius = outer radius minus border width for uniform border
+  const contentRadius = Math.max(0, merged.cornerRadius - merged.borderWidth);
+
   return (
     <div
       className={className}
       style={{
-        // CSS glass body
         backdropFilter: `blur(${merged.blurAmount}px)`,
         WebkitBackdropFilter: `blur(${merged.blurAmount}px)`,
-        background: 'rgba(255,255,255,0.04)',
+        background: merged.background,
         borderRadius: merged.cornerRadius,
-        border: '1px solid rgba(255,255,255,0.2)',
-        boxShadow: `
-          0 8px 32px rgba(0,0,0,0.35),
-          inset 0 1px 0 rgba(255,255,255,0.5),
-          inset 0 8px 12px rgba(255,255,255,0.1)
-        `,
+        border: merged.border,
+        boxShadow: merged.shadow,
         position: 'relative',
         overflow: 'hidden',
         ...style,
@@ -110,7 +108,7 @@ export function Glass({ children, config, style, className }: GlassProps) {
           borderRadius: merged.cornerRadius,
         }}
       />
-      <div style={{ position: 'relative', zIndex: 2 }}>{children}</div>
+      <div style={{ position: 'relative', zIndex: 2, borderRadius: contentRadius }}>{children}</div>
     </div>
   );
 }
