@@ -32,6 +32,8 @@ export interface GlassConfig {
   specularIntensity: number;
   /** Specular highlight spread (higher = tighter). @default 8 */
   specularPower: number;
+  /** Follow device gyroscope for light angle on mobile. @default true */
+  followGyro: boolean;
 }
 
 export const defaultConfig: GlassConfig = {
@@ -51,4 +53,5 @@ export const defaultConfig: GlassConfig = {
   lightAngle: -1.05, // -60° in radians
   specularIntensity: 0.4,
   specularPower: 8,
+  followGyro: true,
 };

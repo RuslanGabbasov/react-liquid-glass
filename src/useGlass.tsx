@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback } from 'react';
+import { useRef, useEffect, useState } from 'react';
 import { initGPU, mountEdge, unmountEdge } from './gpu';
 import { GlassConfig, defaultConfig } from './config';
 
@@ -6,6 +6,9 @@ import { GlassConfig, defaultConfig } from './config';
  * Hook to apply the Liquid Glass effect to any container element.
  *
  * Returns a ref to attach to the **canvas** overlay element.
+ *
+ * On mobile devices, the specular highlight automatically follows
+ * the device orientation via gyroscope (can be disabled with `followGyro: false`).
  *
  * @example
  * ```tsx
@@ -23,10 +26,35 @@ import { GlassConfig, defaultConfig } from './config';
 export function useGlass(config?: Partial<GlassConfig>) {
   const merged = { ...defaultConfig, ...config };
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [gyroAngle, setGyroAngle] = useState(merged.lightAngle);
 
   useEffect(() => {
     initGPU().catch(console.error);
   }, []);
+
+  // Gyroscope: follow device orientation on mobile
+  useEffect(() => {
+    if (!merged.followGyro) return;
+
+    // Check if gyroscope is available
+    if (typeof DeviceOrientationEvent !== 'undefined') {
+      const handler = (e: DeviceOrientationEvent) => {
+        // gamma: left-right tilt (-90..90)
+        // Map gamma to light angle: -45°..45° range around default
+        const gamma = e.gamma ?? 0;
+        const angle = (gamma / 90) * Math.PI * 0.5; // ±90°
+        setGyroAngle(angle);
+      };
+      window.addEventListener('deviceorientation', handler);
+      return () => window.removeEventListener('deviceorientation', handler);
+    }
+  }, [merged.followGyro]);
+
+  // Use gyro angle if following, otherwise config value
+  const effectiveConfig = {
+    ...merged,
+    lightAngle: merged.followGyro ? gyroAngle : merged.lightAngle,
+  };
 
   // Use ResizeObserver to track container size changes
   useEffect(() => {
@@ -38,16 +66,15 @@ export function useGlass(config?: Partial<GlassConfig>) {
 
     const observer = new ResizeObserver(() => {
       const rect = parent.getBoundingClientRect();
-      mountEdge(canvas, rect.width, rect.height, merged);
+      mountEdge(canvas, rect.width, rect.height, effectiveConfig);
     });
-    observer.observe(parent);
     observer.observe(parent);
 
     return () => {
       observer.disconnect();
       unmountEdge(canvas);
     };
-  }, [canvasRef.current]);
+  }, [canvasRef.current, effectiveConfig.lightAngle]);
 
   return canvasRef;
 }
