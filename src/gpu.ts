@@ -293,7 +293,7 @@ export function mountEdge(canvas: HTMLCanvasElement, cardW: number, cardH: numbe
 
   // Write static config params at offset 16 (past panelPos + panelSize)
   const cfg = new Float32Array(11);
-  cfg[0] = config.cornerRadius;
+  cfg[0] = config.cornerRadius * 2;
   cfg[1] = config.borderWidth;
   cfg[2] = config.refraction;
   cfg[3] = config.fresnelPower;

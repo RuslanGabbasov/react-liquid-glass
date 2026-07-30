@@ -105,9 +105,6 @@ export function Glass({ children, config, style, className }: GlassProps) {
   const merged = { ...defaultConfig, ...config };
   const canvasRef = useGlass(merged);
 
-  // Content radius = outer radius minus border width for uniform border
-  const contentRadius = Math.max(0, merged.cornerRadius - merged.borderWidth);
-
   return (
     <div
       className={className}
@@ -132,10 +129,11 @@ export function Glass({ children, config, style, className }: GlassProps) {
           height: '100%',
           pointerEvents: 'none',
           zIndex: 1,
-          borderRadius: merged.cornerRadius,
         }}
       />
-      <div style={{ position: 'relative', zIndex: 2, borderRadius: contentRadius, padding: merged.padding }}>{children}</div>
+      <div style={{ position: 'relative', zIndex: 2, padding: merged.padding }}>
+        {children}
+      </div>
     </div>
   );
 }
