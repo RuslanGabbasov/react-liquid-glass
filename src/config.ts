@@ -26,6 +26,12 @@ export interface GlassConfig {
   border: string;
   /** Padding in content block */
   padding: number;
+  /** Specular highlight light direction angle in radians. @default -1.05 (-60°) */
+  lightAngle: number;
+  /** Specular highlight intensity, 0..1. @default 0.4 */
+  specularIntensity: number;
+  /** Specular highlight spread (higher = tighter). @default 8 */
+  specularPower: number;
 }
 
 export const defaultConfig: GlassConfig = {
@@ -41,5 +47,8 @@ export const defaultConfig: GlassConfig = {
   shadow: '0 8px 32px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.5), inset 0 8px 12px rgba(255,255,255,0.1)',
   background: 'rgba(255,255,255,0.04)',
   border: '0px solid rgba(255,255,255,0.2)',
-  padding: 20
+  padding: 20,
+  lightAngle: -1.05, // -60° in radians
+  specularIntensity: 0.4,
+  specularPower: 8,
 };

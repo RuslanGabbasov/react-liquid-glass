@@ -108,7 +108,7 @@ export function Glass({ children, config, style, className }: GlassProps) {
           borderRadius: merged.cornerRadius,
         }}
       />
-      <div style={{ position: 'relative', zIndex: 2, borderRadius: contentRadius }}>{children}</div>
+      <div style={{ position: 'relative', zIndex: 2, borderRadius: contentRadius, padding: merged.padding }}>{children}</div>
     </div>
   );
 }

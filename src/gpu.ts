@@ -39,6 +39,9 @@ struct Uniforms {
   chromaticAberration: f32,// 36
   glassAlpha: f32,         // 40
   innerBrighten: f32,      // 44
+  lightAngle: f32,         // 48
+  specularIntensity: f32,  // 52
+  specularPower: f32,      // 56
 }
 
 @group(0) @binding(0) var tex: texture_2d<f32>;
@@ -100,6 +103,13 @@ struct VO { @builtin(position) p: vec4f, @location(0) uv: vec2f }
   let inner = mix(base.rgb * u.innerBrighten, vec3f(1.0), u.glassAlpha);
   color = mix(inner, color, borderFactor);
   color = mix(color, vec3f(1.0), pow(fresnel, 2.0) * u.highlight);
+
+  // Specular highlight: rim light based on normal vs light direction
+  let lightDir = vec2f(cos(u.lightAngle), sin(u.lightAngle));
+  let NdotL = dot(normal, lightDir);
+  let specular = pow(max(NdotL, 0.0), u.specularPower) * u.specularIntensity * borderFactor;
+  color = mix(color, vec3f(1.0), specular);
+
   color = mix(color, vec3f(1.0), (1.0 - smoothstep(0.0, 1.0, abs(sd))) * panelEdge * 0.4);
 
   let ea = smoothstep(0.0, bw * 0.8, distToBorder) * panelEdge;
@@ -282,8 +292,8 @@ export function mountEdge(canvas: HTMLCanvasElement, cardW: number, cardH: numbe
   const ubuf = device.createBuffer({ size: 64, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
 
   // Write static config params at offset 16 (past panelPos + panelSize)
-  const cfg = new Float32Array(8);
-  cfg[0] = config.cornerRadius * 2;
+  const cfg = new Float32Array(11);
+  cfg[0] = config.cornerRadius;
   cfg[1] = config.borderWidth;
   cfg[2] = config.refraction;
   cfg[3] = config.fresnelPower;
@@ -291,6 +301,9 @@ export function mountEdge(canvas: HTMLCanvasElement, cardW: number, cardH: numbe
   cfg[5] = config.chromaticAberration;
   cfg[6] = config.glassAlpha;
   cfg[7] = config.innerBrighten;
+  cfg[8] = config.lightAngle;
+  cfg[9] = config.specularIntensity;
+  cfg[10] = config.specularPower;
   device.queue.writeBuffer(ubuf, 16, cfg);
 
   const bg = device.createBindGroup({
