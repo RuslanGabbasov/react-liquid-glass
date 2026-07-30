@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { Glass, useGlass, GlassConfig } from '../src';
 
 // ---- CSS-only animated background ----
@@ -38,7 +38,7 @@ const bgStyles = `
 `;
 
 // ---- Custom card using the hook directly ----
-function CustomGlassCard({ onDrag }: { onDrag: (e: React.PointerEvent) => void }) {
+function CustomGlassCard() {
   const canvasRef = useGlass({ borderWidth: 6, refraction: 18 });
 
   const style: React.CSSProperties = {
@@ -55,7 +55,7 @@ function CustomGlassCard({ onDrag }: { onDrag: (e: React.PointerEvent) => void }
   };
 
   return (
-    <div className="drag-card" style={style} onPointerDown={onDrag}>
+    <div style={style}>
       <canvas ref={canvasRef} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 1 }} />
       <div style={{ position: 'relative', zIndex: 2, padding: 28 }}>
         <h3 style={{ margin: '0 0 10px', fontSize: 18, fontWeight: 600 }}>useGlass() hook</h3>
@@ -76,60 +76,51 @@ export default function App() {
     { id: 3, x: 280, y: 400, w: 360, h: 220, title: 'Configurable', body: 'Tweak cornerRadius, borderWidth, refraction, fresnel, and more.' },
   ]);
 
-  const dragState = useRef<{ id: number | null; offsetX: number; offsetY: number }>({
+  // Stable drag state — never recreated
+  const dragRef = useRef<{ id: number | null; offsetX: number; offsetY: number }>({
     id: null, offsetX: 0, offsetY: 0,
   });
 
-  const startDrag = useCallback((id: number, e: React.PointerEvent) => {
+  // Stable cards ref — always points to latest state
+  const cardsRef = useRef(cards);
+  cardsRef.current = cards;
+
+  // Global pointer move handler — attached once, reads from refs
+  useEffect(() => {
+    const onMove = (ev: PointerEvent) => {
+      const { id, offsetX, offsetY } = dragRef.current;
+      if (id === null) return;
+      const currentCards = cardsRef.current;
+      const card = currentCards.find(c => c.id === id);
+      if (!card) return;
+      setCards(prev => prev.map(c =>
+        c.id === id ? { ...c, x: ev.clientX - offsetX, y: ev.clientY - offsetY } : c
+      ));
+    };
+    const onUp = () => { dragRef.current.id = null; };
+
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    return () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+    };
+  }, []);
+
+  // Pointer down — reads latest cards via ref, never recreated
+  const onPointerDown = useCallback((id: number, e: React.PointerEvent) => {
     e.stopPropagation();
-    const card = cards.find(c => c.id === id);
+    e.preventDefault();
+
+    const card = cardsRef.current.find(c => c.id === id);
     if (!card) return;
 
-    dragState.current = {
+    dragRef.current = {
       id,
       offsetX: e.clientX - card.x,
       offsetY: e.clientY - card.y,
     };
-
-    const onMove = (ev: PointerEvent) => {
-      if (dragState.current.id === null) return;
-      setCards(prev => prev.map(c =>
-        c.id === dragState.current.id
-          ? { ...c, x: ev.clientX - dragState.current.offsetX, y: ev.clientY - dragState.current.offsetY }
-          : c
-      ));
-    };
-    const onUp = () => { dragState.current.id = null; };
-    window.addEventListener('pointermove', onMove);
-    window.addEventListener('pointerup', onUp);
-  }, [cards]);
-
-  // Drag for custom card
-  const customDragRef = useRef<{ offsetX: number; offsetY: number; el: HTMLElement | null }>({
-    offsetX: 0, offsetY: 0, el: null,
-  });
-
-  const startCustomDrag = useCallback((e: React.PointerEvent) => {
-    const target = e.currentTarget as HTMLElement;
-    const rect = target.getBoundingClientRect();
-    customDragRef.current = {
-      offsetX: e.clientX - rect.left,
-      offsetY: e.clientY - rect.top,
-      el: target,
-    };
-
-    const onMove = (ev: PointerEvent) => {
-      const el = customDragRef.current.el;
-      if (!el) return;
-      const parent = el.parentElement;
-      if (!parent) return;
-      el.style.left = `${ev.clientX - customDragRef.current.offsetX}px`;
-      el.style.top = `${ev.clientY - customDragRef.current.offsetY}px`;
-    };
-    const onUp = () => { customDragRef.current.el = null; };
-    window.addEventListener('pointermove', onMove);
-    window.addEventListener('pointerup', onUp);
-  }, []);
+  }, []); // empty deps — stable!
 
   return (
     <>
@@ -142,7 +133,7 @@ export default function App() {
           <div
             key={card.id}
             className="drag-card"
-            onPointerDown={(e) => startDrag(card.id, e)}
+            onPointerDown={(e) => onPointerDown(card.id, e)}
             style={{ left: card.x, top: card.y }}
           >
             <Glass config={{
@@ -158,8 +149,8 @@ export default function App() {
         ))}
 
         {/* Custom hook usage */}
-        <div className="drag-card" style={{ left: 760, top: 440 }} onPointerDown={startCustomDrag}>
-          <CustomGlassCard onDrag={() => {}} />
+        <div className="drag-card" style={{ left: 760, top: 440 }}>
+          <CustomGlassCard />
         </div>
 
         <div className="hint">Drag panels · CSS blur + WebGPU/GL refraction</div>

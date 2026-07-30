@@ -1,7 +1,7 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
 import { initGPU, mountEdge, unmountEdge } from './gpu';
 import { initWebGL, mountEdgeWebGL, unmountEdgeWebGL } from './gpu-webgl';
-import { GlassConfig, defaultConfig } from './config';
+import { GlassConfig, defaultConfig, cinematicGlass } from './config';
 
 type RenderBackend = 'webgpu' | 'webgl' | 'css';
 
@@ -27,8 +27,11 @@ type RenderBackend = 'webgpu' | 'webgl' | 'css';
  * ```
  */
 export function useGlass(config?: Partial<GlassConfig>) {
-  const merged = { ...defaultConfig, ...config };
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const merged = { ...cinematicGlass, ...config };
+  const [canvasEl, setCanvasEl] = useState<HTMLCanvasElement | null>(null);
+  const canvasRef = useCallback((el: HTMLCanvasElement | null) => {
+    setCanvasEl(el);
+  }, []);
   const [backend, setBackend] = useState<RenderBackend>('css');
   const [gyroAngle, setGyroAngle] = useState(merged.lightAngle);
 
@@ -93,7 +96,7 @@ export function useGlass(config?: Partial<GlassConfig>) {
 
   // Mount/unmount edge canvas — only on mount/unmount, NOT on gyro changes
   useEffect(() => {
-    const canvas = canvasRef.current;
+    const canvas = canvasEl;
     if (!canvas || backend === 'css') return;
 
     const parent = canvas.parentElement;
@@ -133,14 +136,14 @@ export function useGlass(config?: Partial<GlassConfig>) {
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canvasRef.current, backend]);
+  }, [canvasEl, backend]);
 
   const effectiveConfig = {
     ...merged,
     lightAngle: merged.followGyro ? gyroAngle : merged.lightAngle,
   };
 
-  return { canvasRef, backend, effectiveConfig };
+  return { canvasRef, backend, effectiveConfig } as const;
 }
 
 /**
