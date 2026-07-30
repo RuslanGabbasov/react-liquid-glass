@@ -81,12 +81,13 @@ struct VO { @builtin(position) p: vec4f, @location(0) uv: vec2f }
   let screenUV = px / texSize;
   let local = px - u.panelPos;
 
+  // ALL texture samples BEFORE any branch (uniform control flow)
   let base = textureSample(tex, smp, screenUV);
+
   let sd = sdRoundedRect(local, half, r);
   let panelEdge = 1.0 - smoothstep(-1.0, 0.0, sd);
 
-  if sd > 1.0 { return vec4f(0.0); }
-
+  // Compute refraction offset (needed for chromatic aberration samples)
   let distToBorder = -sd;
   let borderFactor = (1.0 - smoothstep(0.0, bw, distToBorder)) * panelEdge;
   let normal = sdfGradient(local, half, r);
@@ -94,10 +95,19 @@ struct VO { @builtin(position) p: vec4f, @location(0) uv: vec2f }
   let off = normal * fresnel * u.refraction;
   let offUV = off / texSize;
 
-  let ca = u.chromaticAberration * panelEdge;
-  let cr = textureSample(tex, smp, screenUV + offUV * (1.0 + ca)).r;
-  let cg = textureSample(tex, smp, screenUV + offUV).g;
-  let cb = textureSample(tex, smp, screenUV + offUV * (1.0 - ca)).b;
+  // Chromatic aberration UVs
+  let caStr = u.chromaticAberration * panelEdge;
+  let uvR = screenUV + offUV * (1.0 + caStr);
+  let uvG = screenUV + offUV;
+  let uvB = screenUV + offUV * (1.0 - caStr);
+
+  // ALL texture samples — must be before any branch
+  let cr = textureSample(tex, smp, uvR).r;
+  let cg = textureSample(tex, smp, uvG).g;
+  let cb = textureSample(tex, smp, uvB).b;
+
+  // Now safe to branch
+  if sd > 1.0 { return vec4f(0.0); }
 
   var color = mix(base.rgb, vec3f(cr, cg, cb), borderFactor);
   let inner = mix(base.rgb * u.innerBrighten, vec3f(1.0), u.glassAlpha);

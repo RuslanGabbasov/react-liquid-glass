@@ -1,6 +1,9 @@
-import { useRef, useEffect, useState } from 'react';
+import { useRef, useEffect, useState, useCallback } from 'react';
 import { initGPU, mountEdge, unmountEdge } from './gpu';
+import { initWebGL, mountEdgeWebGL, unmountEdgeWebGL } from './gpu-webgl';
 import { GlassConfig, defaultConfig } from './config';
+
+type RenderBackend = 'webgpu' | 'webgl' | 'css';
 
 /**
  * Hook to apply the Liquid Glass effect to any container element.
@@ -26,57 +29,118 @@ import { GlassConfig, defaultConfig } from './config';
 export function useGlass(config?: Partial<GlassConfig>) {
   const merged = { ...defaultConfig, ...config };
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [backend, setBackend] = useState<RenderBackend>('css');
   const [gyroAngle, setGyroAngle] = useState(merged.lightAngle);
 
+  // Store config in a ref so we don't trigger re-mounts on gyro changes
+  const configRef = useRef(merged);
+  configRef.current = merged;
+
+  // Initialize GPU backend (WebGPU first, fallback to WebGL)
   useEffect(() => {
-    initGPU().catch(console.error);
+    let cancelled = false;
+
+    async function init() {
+      // Try WebGPU first
+      try {
+        await initGPU();
+        if (!cancelled) setBackend('webgpu');
+        return;
+      } catch {
+        // WebGPU not available, try WebGL
+      }
+
+      // Try WebGL fallback
+      const success = await initWebGL();
+      if (!cancelled) {
+        setBackend(success ? 'webgl' : 'css');
+      }
+    }
+
+    init();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // Gyroscope: follow device orientation on mobile
   useEffect(() => {
     if (!merged.followGyro) return;
 
-    // Check if gyroscope is available
-    if (typeof DeviceOrientationEvent !== 'undefined') {
-      const handler = (e: DeviceOrientationEvent) => {
-        // gamma: left-right tilt (-90..90)
-        // Map gamma to light angle: -45°..45° range around default
-        const gamma = e.gamma ?? 0;
-        const angle = (gamma / 90) * Math.PI * 0.5; // ±90°
-        setGyroAngle(angle);
-      };
+    const handler = (e: DeviceOrientationEvent) => {
+      const gamma = e.gamma ?? 0;
+      const angle = (gamma / 90) * Math.PI * 0.5;
+      setGyroAngle(angle);
+    };
+
+    // Request permission on iOS 13+
+    if (typeof DeviceOrientationEvent !== 'undefined' &&
+        typeof (DeviceOrientationEvent as any).requestPermission === 'function') {
+      (DeviceOrientationEvent as any).requestPermission()
+        .then((permissionState: string) => {
+          if (permissionState === 'granted') {
+            window.addEventListener('deviceorientation', handler);
+          }
+        })
+        .catch(console.warn);
+    } else {
       window.addEventListener('deviceorientation', handler);
-      return () => window.removeEventListener('deviceorientation', handler);
     }
+
+    return () => window.removeEventListener('deviceorientation', handler);
   }, [merged.followGyro]);
 
-  // Use gyro angle if following, otherwise config value
-  const effectiveConfig = {
-    ...merged,
-    lightAngle: merged.followGyro ? gyroAngle : merged.lightAngle,
-  };
-
-  // Use ResizeObserver to track container size changes
+  // Mount/unmount edge canvas — only on mount/unmount, NOT on gyro changes
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!canvas || backend === 'css') return;
 
     const parent = canvas.parentElement;
     if (!parent) return;
 
+    // Mount once on mount
+    const mount = () => {
+      const rect = parent.getBoundingClientRect();
+      const cfg = configRef.current;
+      if (backend === 'webgpu') {
+        mountEdge(canvas, rect.width, rect.height, cfg);
+      } else {
+        mountEdgeWebGL(canvas, rect.width, rect.height, cfg);
+      }
+    };
+
+    mount();
+
+    // ResizeObserver for size changes only
     const observer = new ResizeObserver(() => {
       const rect = parent.getBoundingClientRect();
-      mountEdge(canvas, rect.width, rect.height, effectiveConfig);
+      const cfg = configRef.current;
+      if (backend === 'webgpu') {
+        mountEdge(canvas, rect.width, rect.height, cfg);
+      } else {
+        mountEdgeWebGL(canvas, rect.width, rect.height, cfg);
+      }
     });
     observer.observe(parent);
 
     return () => {
       observer.disconnect();
-      unmountEdge(canvas);
+      if (backend === 'webgpu') {
+        unmountEdge(canvas);
+      } else {
+        unmountEdgeWebGL(canvas);
+      }
     };
-  }, [canvasRef.current, effectiveConfig.lightAngle]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canvasRef.current, backend]);
 
-  return canvasRef;
+  const effectiveConfig = {
+    ...merged,
+    lightAngle: merged.followGyro ? gyroAngle : merged.lightAngle,
+  };
+
+  return { canvasRef, backend, effectiveConfig };
 }
 
 /**
@@ -92,7 +156,8 @@ export interface GlassProps {
 /**
  * Convenience wrapper component that applies Liquid Glass to a container.
  *
- * Renders a div with CSS backdrop-filter blur + a WebGPU refractive edge canvas.
+ * Renders a div with CSS backdrop-filter blur + a GPU refractive edge canvas.
+ * Falls back to CSS-only glass on devices without GPU support.
  *
  * @example
  * ```tsx
@@ -103,7 +168,10 @@ export interface GlassProps {
  */
 export function Glass({ children, config, style, className }: GlassProps) {
   const merged = { ...defaultConfig, ...config };
-  const canvasRef = useGlass(merged);
+  const { canvasRef, backend } = useGlass(merged);
+
+  // Content radius is smaller so the border ring is uniform everywhere
+  const contentRadius = Math.max(0, merged.cornerRadius - merged.borderWidth - 1);
 
   return (
     <div
@@ -120,18 +188,28 @@ export function Glass({ children, config, style, className }: GlassProps) {
         ...style,
       }}
     >
-      <canvas
-        ref={canvasRef}
+      {(backend === 'webgpu' || backend === 'webgl') && (
+        <canvas
+          ref={canvasRef}
+          style={{
+            position: 'absolute',
+            inset: 0,
+            width: '100%',
+            height: '100%',
+            pointerEvents: 'none',
+            zIndex: 1,
+          }}
+        />
+      )}
+      <div
         style={{
-          position: 'absolute',
-          inset: 0,
-          width: '100%',
-          height: '100%',
-          pointerEvents: 'none',
-          zIndex: 1,
+          position: 'relative',
+          zIndex: 2,
+          padding: merged.padding,
+          borderRadius: contentRadius,
+          overflow: 'hidden',
         }}
-      />
-      <div style={{ position: 'relative', zIndex: 2, padding: merged.padding }}>
+      >
         {children}
       </div>
     </div>

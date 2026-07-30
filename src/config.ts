@@ -37,8 +37,8 @@ export interface GlassConfig {
 }
 
 export const defaultConfig: GlassConfig = {
-  cornerRadius: 18,
-  borderWidth: 3,
+  cornerRadius: 12,
+  borderWidth: 2,
   refraction: 14,
   fresnelPower: 15,
   highlight: 0.15,
@@ -55,3 +55,39 @@ export const defaultConfig: GlassConfig = {
   specularPower: 8,
   followGyro: true,
 };
+
+export const cinematicGlass: GlassConfig = {
+  cornerRadius: 12,
+  borderWidth: 1.5,
+
+  // главный эффект
+  refraction: 22,
+
+  // делает край "живым"
+  fresnelPower: 7,
+
+  // яркость кромки
+  highlight: 0.28,
+
+  // очень маленькая цветовая дисперсия
+  chromaticAberration: 0.055,
+
+  // само стекло почти прозрачное
+  glassAlpha: 0.045,
+
+  innerBrighten: 1.18,
+
+  blurAmount: 2.5,
+
+  specularIntensity: 0.8,
+  specularPower: 42,
+
+  lightAngle: -1.0,
+
+  followGyro: true,
+
+  padding: 20,
+  shadow: '0 8px 32px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.5), inset 0 8px 12px rgba(255,255,255,0.1)',
+  background: 'rgba(255,255,255,0.04)',
+  border: '0px solid rgba(255,255,255,0.2)',
+}

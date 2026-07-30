@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { Glass, useGlass, GlassConfig } from '../src';
 
 // ---- CSS-only animated background ----
@@ -24,7 +24,17 @@ const bgStyles = `
     50% { transform: rotate(180deg) scale(1.1); }
     100% { transform: rotate(360deg) scale(1); }
   }
-  .hint { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); color: rgba(255,255,255,0.25); font-size: 12px; pointer-events: none; z-index: 100; }
+  .hint {
+    position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+    color: rgba(255,255,255,0.25); font-size: 12px; pointer-events: none; z-index: 100;
+  }
+  .drag-card {
+    position: absolute;
+    cursor: grab;
+    user-select: none;
+    touch-action: none;
+  }
+  .drag-card:active { cursor: grabbing; }
 `;
 
 // ---- Custom card using the hook directly ----
@@ -45,8 +55,8 @@ function CustomGlassCard({ onDrag }: { onDrag: (e: React.PointerEvent) => void }
   };
 
   return (
-    <div style={style} onPointerDown={onDrag}>
-      <canvas ref={canvasRef} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 1, borderRadius: 32 }} />
+    <div className="drag-card" style={style} onPointerDown={onDrag}>
+      <canvas ref={canvasRef} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 1 }} />
       <div style={{ position: 'relative', zIndex: 2, padding: 28 }}>
         <h3 style={{ margin: '0 0 10px', fontSize: 18, fontWeight: 600 }}>useGlass() hook</h3>
         <p style={{ fontSize: 13, lineHeight: 1.6, opacity: 0.8, padding: 20 }}>
@@ -66,42 +76,60 @@ export default function App() {
     { id: 3, x: 280, y: 400, w: 360, h: 220, title: 'Configurable', body: 'Tweak cornerRadius, borderWidth, refraction, fresnel, and more.' },
   ]);
 
-  const dragRef = { current: null as number | null };
-  const offRef = { x: 0, y: 0 };
+  const dragState = useRef<{ id: number | null; offsetX: number; offsetY: number }>({
+    id: null, offsetX: 0, offsetY: 0,
+  });
 
   const startDrag = useCallback((id: number, e: React.PointerEvent) => {
+    e.stopPropagation();
     const card = cards.find(c => c.id === id);
-    if (!card) {
-      // CustomGlassCard — start drag on the parent element
-      const target = (e.currentTarget as HTMLElement).parentElement;
-      if (!target) return;
-      const rect = target.getBoundingClientRect();
-      dragRef.current = id;
-      offRef.x = e.clientX - rect.left;
-      offRef.y = e.clientY - rect.top;
+    if (!card) return;
 
-      const onMove = (ev: PointerEvent) => {
-        if (dragRef.current === null) return;
-        target.style.left = `${ev.clientX - offRef.x}px`;
-        target.style.top = `${ev.clientY - offRef.y}px`;
-      };
-      const onUp = () => { dragRef.current = null; window.removeEventListener('pointermove', onMove); window.removeEventListener('pointerup', onUp); };
-      window.addEventListener('pointermove', onMove);
-      window.addEventListener('pointerup', onUp);
-      return;
-    }
-    dragRef.current = id;
-    offRef.x = e.clientX - card.x;
-    offRef.y = e.clientY - card.y;
+    dragState.current = {
+      id,
+      offsetX: e.clientX - card.x,
+      offsetY: e.clientY - card.y,
+    };
 
     const onMove = (ev: PointerEvent) => {
-      if (dragRef.current === null) return;
-      setCards(prev => prev.map(c => c.id === dragRef.current ? { ...c, x: ev.clientX - offRef.x, y: ev.clientY - offRef.y } : c));
+      if (dragState.current.id === null) return;
+      setCards(prev => prev.map(c =>
+        c.id === dragState.current.id
+          ? { ...c, x: ev.clientX - dragState.current.offsetX, y: ev.clientY - dragState.current.offsetY }
+          : c
+      ));
     };
-    const onUp = () => { dragRef.current = null; window.removeEventListener('pointermove', onMove); window.removeEventListener('pointerup', onUp); };
+    const onUp = () => { dragState.current.id = null; };
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);
   }, [cards]);
+
+  // Drag for custom card
+  const customDragRef = useRef<{ offsetX: number; offsetY: number; el: HTMLElement | null }>({
+    offsetX: 0, offsetY: 0, el: null,
+  });
+
+  const startCustomDrag = useCallback((e: React.PointerEvent) => {
+    const target = e.currentTarget as HTMLElement;
+    const rect = target.getBoundingClientRect();
+    customDragRef.current = {
+      offsetX: e.clientX - rect.left,
+      offsetY: e.clientY - rect.top,
+      el: target,
+    };
+
+    const onMove = (ev: PointerEvent) => {
+      const el = customDragRef.current.el;
+      if (!el) return;
+      const parent = el.parentElement;
+      if (!parent) return;
+      el.style.left = `${ev.clientX - customDragRef.current.offsetX}px`;
+      el.style.top = `${ev.clientY - customDragRef.current.offsetY}px`;
+    };
+    const onUp = () => { customDragRef.current.el = null; };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+  }, []);
 
   return (
     <>
@@ -113,10 +141,16 @@ export default function App() {
         {cards.map(card => (
           <div
             key={card.id}
+            className="drag-card"
             onPointerDown={(e) => startDrag(card.id, e)}
-            style={{ position: 'absolute', left: card.x, top: card.y, cursor: 'grab', userSelect: 'none' }}
+            style={{ left: card.x, top: card.y }}
           >
-            <Glass config={{ cornerRadius: 32, padding: 20, blurAmount: 4, shadow: '0 8px 32px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.5), inset 0 8px 12px rgba(255,255,255,0.1)' }} style={{ width: card.w, height: card.h }}>
+            <Glass config={{
+              cornerRadius: 32,
+              padding: 20,
+              blurAmount: 4,
+              shadow: '0 8px 32px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.5), inset 0 8px 12px rgba(255,255,255,0.1)',
+            }}>
               <h3 style={{ margin: '0 0 10px', fontSize: 18, fontWeight: 600 }}>{card.title}</h3>
               <p style={{ fontSize: 13, lineHeight: 1.6, opacity: 0.8 }}>{card.body}</p>
             </Glass>
@@ -124,11 +158,11 @@ export default function App() {
         ))}
 
         {/* Custom hook usage */}
-        <div style={{ position: 'absolute', left: 760, top: 440, cursor: 'grab', userSelect: 'none' }}>
-          <CustomGlassCard onDrag={(e) => startDrag(-1, e)} />
+        <div className="drag-card" style={{ left: 760, top: 440 }} onPointerDown={startCustomDrag}>
+          <CustomGlassCard onDrag={() => {}} />
         </div>
 
-        <div className="hint">Drag panels · CSS blur + WebGPU refractive edge</div>
+        <div className="hint">Drag panels · CSS blur + WebGPU/GL refraction</div>
       </div>
     </>
   );
