@@ -162,13 +162,32 @@ struct VO { @builtin(position) p: vec4f, @location(0) uv: vec2f }
 
 // ---- Init ----
 let loopRunning = false;
+let initPromise: Promise<void> | null = null;
 
 export async function initGPU(): Promise<void> {
   if (device) return;
+  
+  // Prevent race: multiple hooks calling initGPU simultaneously
+  if (initPromise) {
+    console.log('[WebGPU] Init already in progress, waiting...');
+    return initPromise;
+  }
 
-  const adapter = await navigator.gpu.requestAdapter();
-  if (!adapter) throw new Error('WebGPU not available');
-  device = await adapter.requestDevice();
+  initPromise = (async () => {
+    console.log('[WebGPU] Requesting adapter...');
+    const adapter = await navigator.gpu.requestAdapter();
+    if (!adapter) {
+      console.error('[WebGPU] No adapter available');
+      throw new Error('WebGPU not available');
+    }
+    console.log('[WebGPU] Adapter obtained:', adapter);
+    
+    console.log('[WebGPU] Requesting device...');
+    device = await adapter.requestDevice();
+    console.log('[WebGPU] Device obtained');
+    
+    // Clear any stale edges from previous device
+    edges.clear();
 
   sampler = device.createSampler({
     magFilter: 'linear',
@@ -266,6 +285,9 @@ export async function initGPU(): Promise<void> {
     }
     requestAnimationFrame(frame);
   }
+  })();
+  
+  return initPromise;
 }
 
 // ---- Public API ----
@@ -274,8 +296,35 @@ export function mountEdge(canvas: HTMLCanvasElement, cardW: number, cardH: numbe
   if (!device || !sceneView || !edgeBGL || !edgePL || !edgeShader) return;
 
   const dpr = window.devicePixelRatio || 1;
-  canvas.width = Math.round(cardW * dpr);
-  canvas.height = Math.round(cardH * dpr);
+  const w = Math.round(cardW * dpr);
+  const h = Math.round(cardH * dpr);
+
+  // Already mounted? Just update size + config
+  const existing = edges.get(canvas);
+  if (existing) {
+    if (canvas.width !== w || canvas.height !== h) {
+      canvas.width = w;
+      canvas.height = h;
+    }
+    // Update config params only
+    const cfg = new Float32Array(11);
+    cfg[0] = config.cornerRadius * 2;
+    cfg[1] = config.borderWidth;
+    cfg[2] = config.refraction;
+    cfg[3] = config.fresnelPower;
+    cfg[4] = config.highlight;
+    cfg[5] = config.chromaticAberration;
+    cfg[6] = config.glassAlpha;
+    cfg[7] = config.innerBrighten;
+    cfg[8] = config.lightAngle;
+    cfg[9] = config.specularIntensity;
+    cfg[10] = config.specularPower;
+    device.queue.writeBuffer(existing.uniformBuffer, 16, cfg);
+    return;
+  }
+
+  canvas.width = w;
+  canvas.height = h;
 
   const ctx = canvas.getContext('webgpu');
   if (!ctx) return;

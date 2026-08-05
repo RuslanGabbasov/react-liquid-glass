@@ -77,7 +77,7 @@ export const cinematicGlass: GlassConfig = {
 
   innerBrighten: 1.18,
 
-  blurAmount: 2.5,
+  blurAmount: 1.5,
 
   specularIntensity: 0.8,
   specularPower: 42,
